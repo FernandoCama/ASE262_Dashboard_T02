@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#101a31">
+    <title>Dashboard de Automatización</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/estilo.css') }}" rel="stylesheet">
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <a class="brand" href="{{ url_for('inicio') }}" aria-label="Inicio del dashboard">
+                <span class="brand-mark">A</span>
+                <span><strong>Auto<span>Dashboard</span></strong><small>Panel de control</small></span>
+            </a>
+
+            <div class="sidebar-label">MENÚ PRINCIPAL</div>
+            <a class="nav-link active" href="{{ url_for('inicio') }}">
+                <span class="nav-icon">▦</span> Resumen general
+            </a>
+            <a class="nav-link" href="#seccion-grafico">
+                <span class="nav-icon">◔</span> Estadísticas
+            </a>
+            <a class="nav-link" href="#seccion-tabla">
+                <span class="nav-icon">▤</span> Registros
+            </a>
+
+            <div class="sidebar-footer">
+                <span class="status-dot"></span>
+                <div><strong>Panel operativo</strong><small>Fuente: Google Sheets</small></div>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <header class="topbar">
+                <div>
+                    <p class="eyebrow">PANEL DE AUTOMATIZACIÓN</p>
+                    <h1>Resumen general</h1>
+                    <p class="page-subtitle">Consulta y supervisa los registros de validación desde un solo lugar.</p>
+                </div>
+                <button class="btn-refresh" type="button" onclick="window.location.reload()">
+                    <span aria-hidden="true">↻</span> Actualizar datos
+                </button>
+            </header>
+
+            {% if error_carga %}
+            <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                <strong>No se pudo actualizar la información.</strong> {{ error_carga }}
+            </div>
+            {% endif %}
+
+            <section class="summary-grid" aria-label="Indicadores principales">
+                <article class="metric-card metric-primary">
+                    <div class="metric-topline"><span class="metric-label">TOTAL DE REGISTROS</span><span class="metric-icon">▤</span></div>
+                    <div class="metric-value">{{ kpis.total_registros }}</div>
+                    <div class="metric-foot"><span class="metric-dot"></span> Registros recibidos de la fuente</div>
+                </article>
+
+                {% set estados = kpis.conteo_estados %}
+                {% for estado, cantidad in estados.items() %}
+                {% if loop.index <= 3 %}
+                <article class="metric-card">
+                    <div class="metric-topline"><span class="metric-label">{{ estado|upper }}</span><span class="status-pill">Estado</span></div>
+                    <div class="metric-value">{{ cantidad }}</div>
+                    <div class="metric-foot">{{ ((cantidad / kpis.total_registros * 100) if kpis.total_registros else 0)|round|int }}% del total de registros</div>
+                </article>
+                {% endif %}
+                {% endfor %}
+            </section>
+
+            <section class="content-grid">
+                <article class="panel chart-panel" id="seccion-grafico">
+                    <div class="panel-heading">
+                        <div><p class="eyebrow">DISTRIBUCIÓN</p><h2>Estado de las solicitudes</h2><p class="panel-subtitle">Participación de cada estado en el total.</p></div>
+                        <span class="panel-badge">Gráfico</span>
+                    </div>
+                    <div class="chart-area">
+                        <img src="{{ url_for('static', filename='grafico_estados.png', v=version_grafico) }}" alt="Gráfico de distribución de los estados de validación" class="status-chart">
+                    </div>
+                </article>
+
+                <article class="panel info-panel">
+                    <div class="panel-heading">
+                        <div><p class="eyebrow">VISTA RÁPIDA</p><h2>Resumen de validación</h2><p class="panel-subtitle">Conteo por estado registrado.</p></div>
+                    </div>
+                    {% if estados %}
+                    <div class="status-list">
+                        {% for estado, cantidad in estados.items() %}
+                        <div class="status-row">
+                            <div class="status-row-label"><span class="legend-dot legend-{{ loop.index0 % 6 }}"></span><span>{{ estado }}</span></div>
+                            <strong>{{ cantidad }}</strong>
+                        </div>
+                        {% set total_registros = kpis.total_registros|default(0, true)|float %}
+                        {% set porcentaje = ((cantidad|float / total_registros * 100) if total_registros > 0 else 0)|round(1) %}
+                        <div class="progress-track">
+                            <div class="progress-fill fill-{{ loop.index0 % 6 }}" data-width="{{ porcentaje }}" style="width: 0%"></div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="empty-state compact-empty"><span>◌</span><p>No hay estados para resumir.</p></div>
+                    {% endif %}
+                    <div class="info-footer"><span class="info-footer-icon">ⓘ</span><span>Última consulta: {{ actualizado }}</span></div>
+                </article>
+            </section>
+
+            <section class="panel records-panel" id="seccion-tabla">
+                <div class="panel-heading records-heading">
+                    <div><p class="eyebrow">DETALLE DE INFORMACIÓN</p><h2>Registros</h2><p class="panel-subtitle">Busca datos o filtra por estado sin recargar la página.</p></div>
+                    <span class="record-count"><strong id="filasVisibles">{{ kpis.total_registros }}</strong> registros visibles</span>
+                </div>
+
+                <div class="table-tools">
+                    <label class="search-box" for="buscarRegistros"><span aria-hidden="true">⌕</span><input type="search" id="buscarRegistros" placeholder="Buscar en los registros..." autocomplete="off"></label>
+                    <label class="filter-box" for="filtroEstado"><span>Estado:</span>
+                        <select id="filtroEstado" {% if not estados %}disabled{% endif %}>
+                            <option value="">Todos los estados</option>
+                            {% for estado in estados.keys() %}<option value="{{ estado }}">{{ estado }}</option>{% endfor %}
+                        </select>
+                    </label>
+                    <button class="btn-clear" type="button" id="limpiarFiltros">Limpiar filtros</button>
+                </div>
+
+                {% if tabla %}
+                <div class="table-responsive table-scroll" id="envolturaTabla">
+                    {{ tabla|safe }}
+                </div>
+                <div class="table-empty" id="sinCoincidencias" hidden>No se encontraron registros que coincidan con la búsqueda.</div>
+                {% else %}
+                <div class="empty-state"><span>▤</span><h3>No hay datos disponibles</h3><p>Comprueba la conexión a Google Sheets y actualiza el dashboard.</p></div>
+                {% endif %}
+            </section>
+
+            <footer class="page-footer"><span>Dashboard de Automatización</span><span>Datos consultados: {{ actualizado }}</span></footer>
+        </main>
+    </div>
+
+    <script>
+    (() => {
+        const buscar = document.getElementById('buscarRegistros');
+        const filtroEstado = document.getElementById('filtroEstado');
+        const limpiar = document.getElementById('limpiarFiltros');
+        const filasVisibles = document.getElementById('filasVisibles');
+        const sinCoincidencias = document.getElementById('sinCoincidencias');
+        const tabla = document.querySelector('#envolturaTabla table');
+
+        if (!tabla || !buscar || !filtroEstado || !limpiar) return;
+
+        const filas = Array.from(tabla.querySelectorAll('tbody tr'));
+        const encabezados = Array.from(tabla.querySelectorAll('thead th'));
+        const indiceEstado = encabezados.findIndex(th =>
+            th.textContent.toLocaleUpperCase('es').replace(/\s+/g, ' ').trim() === 'ESTADO DE VALIDACIÓN'
+        );
+
+        function aplicarFiltros() {
+            const consulta = buscar.value.trim().toLocaleLowerCase('es');
+            const estadoElegido = filtroEstado.value.trim().toLocaleLowerCase('es');
+            let visibles = 0;
+
+            filas.forEach(fila => {
+                const textoFila = fila.textContent.toLocaleLowerCase('es');
+                const celdaEstado = indiceEstado >= 0 && fila.cells[indiceEstado]
+                    ? fila.cells[indiceEstado].textContent.trim().toLocaleLowerCase('es')
+                    : '';
+                const coincideTexto = textoFila.includes(consulta);
+                const coincideEstado = !estadoElegido || celdaEstado === estadoElegido;
+                const mostrar = coincideTexto && coincideEstado;
+                fila.hidden = !mostrar;
+                if (mostrar) visibles++;
+            });
+
+            if (filasVisibles) filasVisibles.textContent = visibles;
+            if (sinCoincidencias) sinCoincidencias.hidden = visibles !== 0;
+        }
+
+        buscar.addEventListener('input', aplicarFiltros);
+        filtroEstado.addEventListener('change', aplicarFiltros);
+        limpiar.addEventListener('click', () => {
+            buscar.value = '';
+            filtroEstado.value = '';
+            aplicarFiltros();
+            buscar.focus();
+        });
+        aplicarFiltros();
+    })();
+    </script>
+</body>
+</html>
