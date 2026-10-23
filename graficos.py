@@ -4,7 +4,7 @@ import unicodedata
 import matplotlib
 matplotlib.use('Agg')  # Genera la imagen sin abrir una ventana gráfica.
 import matplotlib.pyplot as plt
-
+import plotly.graph_objects as go # IMPORTACIÓN DE PLOTLY AÑADIDA
 
 CARPETA_STATIC = Path(__file__).resolve().parent / 'static'
 RUTA_GRAFICO = CARPETA_STATIC / 'grafico_estados.png'
@@ -30,8 +30,35 @@ def _buscar_columna_estado(df):
     return None
 
 
+def colores_para_estados(estados):
+    """Asigna colores semánticos compartidos por el gráfico y el resumen."""
+    colores_semanticos = {
+        'aprobado': '#3157d5',
+        'aprobada': '#3157d5',
+        'approved': '#3157d5',
+        'pendiente': '#14b8a6',
+        'pending': '#14b8a6',
+        'descartado': '#f59e0b',
+        'descartada': '#f59e0b',
+        'rejected': '#f59e0b',
+    }
+    paleta_extra = ['#8b5cf6', '#ef4444', '#0ea5e9', '#2ecc71', '#e74c3c']
+    colores = {}
+
+    for estado in estados:
+        clave = _normalizar_texto(estado).casefold()
+        colores[estado] = colores_semanticos.get(
+            clave,
+            paleta_extra[len(colores) % len(paleta_extra)],
+        )
+
+    return colores
+
+# =====================================================================
+# FUNCIÓN ORIGINAL: MATPLOTLIB (Mantenida intacta)
+# =====================================================================
 def generar_graficos(df):
-    """Genera un gráfico de barras con cantidades y porcentajes por estado."""
+    """Genera un gráfico de barras estático (PNG) con Matplotlib."""
     CARPETA_STATIC.mkdir(parents=True, exist_ok=True)
 
     fig, ax = plt.subplots(figsize=(8, 4.6), dpi=160)
@@ -59,7 +86,6 @@ def generar_graficos(df):
                     va='center', color='#64748b', fontsize=12,
                     transform=ax.transAxes)
         else:
-            # Paleta ; se repite si la hoja tiene más de tres estados.
             colores_base = ['#2ecc71', '#e74c3c', '#f39c12', '#3157d5',
                             '#14b8a6', '#8b5cf6', '#0ea5e9']
             colores = [colores_base[i % len(colores_base)]
@@ -82,7 +108,6 @@ def generar_graficos(df):
             ax.tick_params(axis='y', labelsize=9, colors='#64748b', length=0)
             plt.setp(ax.get_xticklabels(), rotation=15, ha='right')
 
-            # Cantidad y porcentaje encima de cada barra.
             for barra in barras:
                 altura = int(barra.get_height())
                 porcentaje = (altura / total_registros) * 100
@@ -99,7 +124,6 @@ def generar_graficos(df):
                     color='#334155',
                 )
 
-            # Limpiar bordes y agregar una cuadrícula discreta.
             ax.spines['top'].set_visible(False)
             ax.spines['right'].set_visible(False)
             ax.spines['left'].set_visible(False)
@@ -114,3 +138,93 @@ def generar_graficos(df):
                 bbox_inches='tight')
     plt.close(fig)
     return str(RUTA_GRAFICO)
+
+# =====================================================================
+# FUNCIÓN NUEVA: PLOTLY INTERACTIVO (Añadida)
+# =====================================================================
+def grafico_estados_interactivo(df):
+    """Genera un gráfico horizontal con cantidades visibles de forma permanente."""
+    fig = go.Figure()
+    
+    columna_estado = _buscar_columna_estado(df)
+    
+    if columna_estado is None or df is None or df.empty:
+        # Si no hay datos, retornamos una figura vacía con un mensaje
+        fig.update_layout(title="No hay datos disponibles para el gráfico")
+        return fig
+        
+    estados = df[columna_estado].fillna('Sin estado').astype(str).str.strip()
+    estados = estados.replace('', 'Sin estado')
+    conteo = estados.value_counts()
+    
+    etiquetas = conteo.index.tolist()
+    cantidades = conteo.astype(int).tolist()
+    total_registros = sum(cantidades)
+    porcentajes = [cantidad / total_registros * 100 for cantidad in cantidades]
+    etiquetas_cantidad = [
+        f'{cantidad} ({porcentaje:.1f}%)'
+        for cantidad, porcentaje in zip(cantidades, porcentajes)
+    ]
+    
+    colores_por_estado = colores_para_estados(etiquetas)
+    colores = [colores_por_estado[estado] for estado in etiquetas]
+
+    fig.add_trace(go.Bar(
+        x=cantidades,
+        y=etiquetas,
+        orientation='h',
+        marker=dict(
+            color=colores,
+            line=dict(color='rgba(255,255,255,0.82)', width=1.5),
+            opacity=0.94,
+        ),
+        text=etiquetas_cantidad,
+        textposition='outside',
+        cliponaxis=False,
+        customdata=list(zip(porcentajes, colores)),
+        # Se muestra una tarjeta propia desde el evento de hover, no la etiqueta
+        # nativa de Plotly, que puede recortarse o perder contraste.
+        hoverinfo='none',
+        hoverlabel=dict(
+            bgcolor='#101a31',
+            bordercolor='#101a31',
+            font=dict(color='#ffffff', size=13),
+            align='left',
+            namelength=-1,
+        ),
+    ))
+
+    fig.update_layout(
+        template='plotly_white',
+        margin=dict(l=20, r=90, t=20, b=45),
+        height=max(310, 58 * len(etiquetas) + 80),
+        showlegend=False,
+        bargap=0.35,
+        barcornerradius='12px',
+        hovermode='closest',
+        hoverdistance=30,
+        transition=dict(duration=650, easing='cubic-in-out'),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        hoverlabel=dict(
+            bgcolor='#101a31',
+            bordercolor='#101a31',
+            font=dict(color='#ffffff', size=13),
+            align='left',
+        ),
+        xaxis=dict(
+            title='Cantidad',
+            range=[0, max(cantidades) * 1.4],
+            rangemode='tozero',
+            showgrid=True,
+            gridcolor='#e8edf5',
+            zeroline=False,
+        ),
+        yaxis=dict(
+            title='Estado',
+            autorange='reversed',
+            automargin=True,
+        ),
+    )
+
+    return fig
