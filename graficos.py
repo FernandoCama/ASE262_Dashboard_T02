@@ -33,16 +33,16 @@ def _buscar_columna_estado(df):
 def colores_para_estados(estados):
     """Asigna colores semánticos compartidos por el gráfico y el resumen."""
     colores_semanticos = {
-        'aprobado': '#3157d5',
-        'aprobada': '#3157d5',
-        'approved': '#3157d5',
-        'pendiente': '#14b8a6',
-        'pending': '#14b8a6',
-        'descartado': '#f59e0b',
-        'descartada': '#f59e0b',
-        'rejected': '#f59e0b',
+        'aprobado': '#075982',
+        'aprobada': '#075982',
+        'approved': '#075982',
+        'pendiente': '#f5b335',
+        'pending': '#f5b335',
+        'descartado': '#d96b5f',
+        'descartada': '#d96b5f',
+        'rejected': '#d96b5f',
     }
-    paleta_extra = ['#8b5cf6', '#ef4444', '#0ea5e9', '#2ecc71', '#e74c3c']
+    paleta_extra = ['#438b9d', '#82a95d', '#7186a0', '#b98744', '#d96b5f']
     colores = {}
 
     for estado in estados:
@@ -73,7 +73,7 @@ def generar_graficos(df):
         else:
             mensaje = 'No se encontró la columna\nESTADO DE VALIDACIÓN'
         ax.text(0.5, 0.5, mensaje, ha='center', va='center',
-                color='#64748b', fontsize=12, transform=ax.transAxes)
+                color='#6d8090', fontsize=12, transform=ax.transAxes)
     else:
         estados = df[columna_estado].fillna('Sin estado').astype(str).str.strip()
         estados = estados.replace('', 'Sin estado')
@@ -83,11 +83,11 @@ def generar_graficos(df):
         if conteo.empty or total_registros == 0:
             ax.axis('off')
             ax.text(0.5, 0.5, 'No hay estados para mostrar', ha='center',
-                    va='center', color='#64748b', fontsize=12,
+                    va='center', color='#6d8090', fontsize=12,
                     transform=ax.transAxes)
         else:
-            colores_base = ['#2ecc71', '#e74c3c', '#f39c12', '#3157d5',
-                            '#14b8a6', '#8b5cf6', '#0ea5e9']
+            colores_base = ['#075982', '#f5b335', '#438b9d', '#82a95d',
+                            '#d96b5f', '#7186a0', '#b98744']
             colores = [colores_base[i % len(colores_base)]
                        for i in range(len(conteo))]
 
@@ -101,11 +101,11 @@ def generar_graficos(df):
             )
 
             ax.set_title('Estado de las solicitudes', fontsize=14,
-                         pad=16, fontweight='bold', color='#17233c')
-            ax.set_xlabel('Estado', fontsize=10, color='#64748b', labelpad=10)
-            ax.set_ylabel('Cantidad', fontsize=10, color='#64748b', labelpad=8)
-            ax.tick_params(axis='x', labelsize=9, colors='#475569', length=0, pad=8)
-            ax.tick_params(axis='y', labelsize=9, colors='#64748b', length=0)
+                         pad=16, fontweight='bold', color='#173c56')
+            ax.set_xlabel('Estado', fontsize=10, color='#6d8090', labelpad=10)
+            ax.set_ylabel('Cantidad', fontsize=10, color='#6d8090', labelpad=8)
+            ax.tick_params(axis='x', labelsize=9, colors='#3e5e72', length=0, pad=8)
+            ax.tick_params(axis='y', labelsize=9, colors='#6d8090', length=0)
             plt.setp(ax.get_xticklabels(), rotation=15, ha='right')
 
             for barra in barras:
@@ -121,15 +121,15 @@ def generar_graficos(df):
                     va='bottom',
                     fontsize=9,
                     fontweight='bold',
-                    color='#334155',
+                    color='#3e5e72',
                 )
 
             ax.spines['top'].set_visible(False)
             ax.spines['right'].set_visible(False)
             ax.spines['left'].set_visible(False)
-            ax.spines['bottom'].set_color('#dbe2ec')
+            ax.spines['bottom'].set_color('#e3eaee')
             ax.grid(axis='y', linestyle='--', linewidth=0.7,
-                    color='#cbd5e1', alpha=0.55, zorder=0)
+                    color='#d7e3e9', alpha=0.65, zorder=0)
             ax.set_axisbelow(True)
             ax.set_ylim(0, max(conteo.values) * 1.28)
 
@@ -186,8 +186,8 @@ def grafico_estados_interactivo(df):
         # nativa de Plotly, que puede recortarse o perder contraste.
         hoverinfo='none',
         hoverlabel=dict(
-            bgcolor='#101a31',
-            bordercolor='#101a31',
+            bgcolor='#07395a',
+            bordercolor='#07395a',
             font=dict(color='#ffffff', size=13),
             align='left',
             namelength=-1,
@@ -207,8 +207,8 @@ def grafico_estados_interactivo(df):
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
         hoverlabel=dict(
-            bgcolor='#101a31',
-            bordercolor='#101a31',
+            bgcolor='#07395a',
+            bordercolor='#07395a',
             font=dict(color='#ffffff', size=13),
             align='left',
         ),
