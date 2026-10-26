@@ -3,19 +3,28 @@ import json
 import os
 import secrets
 import threading
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+# Carga primero las variables locales para que los servicios importados las encuentren.
+# Cargar la configuración del proyecto antes de inicializar Flask o importar
+# cualquier servicio que lea variables de entorno.
+load_dotenv(dotenv_path=Path(__file__).resolve().parent / '.env', override=False)
 
 from flask import Flask, jsonify, render_template, request, session
 
+from apps_script_client import diagnosticar_configuracion, procesar_notificacion
 from conexion_sheets import (
     ErrorRegistro,
     actualizar_estado_registro,
-    marcar_registro_notificado,
+    obtener_registro_por_codigo,
     obtener_datos,
 )
 from analisis import LIMITE_GASTO, calcular_kpis
 from graficos import colores_para_estados, generar_graficos, grafico_estados_interactivo
-from notificaciones import ErrorNotificacion, enviar_notificacion_aprobacion
 
+# Inicialización de Flask, seguridad de sesión y bloqueo de acciones simultáneas.
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY') or secrets.token_hex(32)
 app.config.update(
@@ -24,7 +33,10 @@ app.config.update(
 )
 _approval_workflow_lock = threading.Lock()
 
+diagnosticar_configuracion()
 
+
+# Genera un token de sesión para proteger las peticiones que modifican registros.
 def _csrf_token():
     token = session.get('csrf_token')
     if not token:
@@ -33,6 +45,7 @@ def _csrf_token():
     return token
 
 
+# Convierte el DataFrame a listas JSON para que la plantilla pueda usarlo en JavaScript.
 def _serializar_registros(df):
     if df is None or df.empty:
         return [], []
@@ -48,12 +61,13 @@ def _serializar_registros(df):
     return datos['columns'], datos['data']
 
 
+# Ruta principal: carga la hoja, calcula indicadores y prepara los gráficos del panel.
 @app.route('/')
 def inicio():
     """Carga los datos, calcula los indicadores y muestra el dashboard."""
     error_carga = None
     df = None
-    grafico_html = "" # Variable nueva para Plotly
+    grafico_html = "" # Contenido HTML del gráfico interactivo; queda vacío si no se genera.
 
     try:
         df = obtener_datos()
@@ -71,10 +85,10 @@ def inicio():
     colores_estados = colores_para_estados(estados_conocidos)
 
     try:
-        # Mantenemos la generación del PNG estático para no romper nada
+        # Conserva una imagen PNG como alternativa si el gráfico interactivo no está disponible.
         generar_graficos(df)
         
-        # AÑADIDO: Generamos el gráfico interactivo si hay datos
+        # Solo genera Plotly cuando la hoja contiene registros.
         if df is not None and not df.empty:
             figura_plotly = grafico_estados_interactivo(df)
             grafico_html = figura_plotly.to_html(
@@ -133,8 +147,7 @@ def inicio():
     except Exception:
         app.logger.exception('No se pudo generar el gráfico de estados.')
 
-    # Enviamos el contenido original, sin descartar columnas, para el listado
-    # resumido y el detalle de cada registro.
+    # Mantiene todas las columnas para construir la tabla resumida y el detalle del modal.
     columnas, registros = _serializar_registros(df)
 
     return render_template(
@@ -146,12 +159,13 @@ def inicio():
         error_carga=error_carga,
         actualizado=datetime.now().strftime('%d/%m/%Y %H:%M:%S'),
         version_grafico=int(datetime.now().timestamp()),
-        grafico_interactivo=grafico_html,  # Enviamos Plotly al HTML
+        grafico_interactivo=grafico_html,  # Entrega a la plantilla el gráfico ya renderizado.
         colores_estados=colores_estados,
         csrf_token=_csrf_token(),
     )
 
 
+# Endpoints de aprobación y rechazo: valida la sesión, guarda el estado y solicita el aviso.
 @app.post('/api/registros/aprobar')
 @app.post('/api/registros/rechazar')
 def cambiar_estado_registro_route():
@@ -176,53 +190,43 @@ def cambiar_estado_registro_route():
             return jsonify(ok=False, error=str(error)), error.status_code
         except Exception:
             app.logger.exception('No se pudo actualizar el registro en Google Sheets.')
-            return jsonify(
-                ok=False,
-                error='No se pudo guardar el cambio en Google Sheets. El registro conserva su estado anterior.',
-            ), 502
-
-        notificacion = {
-            'enviado': False,
-            'registrado': False,
-            'ya_estaba': False,
-            'mensaje': '',
-        }
-        if not registro['tiene_columna_notificado']:
-            notificacion['mensaje'] = (
-                'El cambio se guardó, pero la hoja no tiene la columna NOTIFICADO.'
-            )
-        elif _valor_notificado(registro['notificado']):
-            notificacion.update(
-                registrado=True,
-                ya_estaba=True,
-                mensaje='La hoja ya indica que este registro fue notificado; no se envió otro correo.',
-            )
-        else:
             try:
-                enviar_notificacion_aprobacion(
-                    registro['correo'], registro['nombre'], registro['codigo'],
-                    registro['monto'], nuevo_estado,
-                )
-                notificacion['enviado'] = True
-            except ErrorNotificacion as error:
-                notificacion['mensaje'] = str(error)
-                app.logger.warning('El estado %s se guardó; falló la notificación para el código %s.', nuevo_estado, codigo)
+                registro = obtener_registro_por_codigo(codigo)
             except Exception:
-                notificacion['mensaje'] = 'No se pudo confirmar el envío de la notificación.'
-                app.logger.exception('El estado %s se guardó; falló la notificación para el código %s.', nuevo_estado, codigo)
-            else:
-                try:
-                    notificacion['registrado'] = marcar_registro_notificado(codigo)
-                    notificacion['mensaje'] = (
-                        'Notificación enviada y registrada en Google Sheets.'
-                        if notificacion['registrado']
-                        else 'La notificación fue enviada; Google Sheets ya la registraba.'
-                    )
-                except Exception:
-                    notificacion['mensaje'] = (
-                        'El correo se envió, pero no se pudo actualizar NOTIFICADO en Google Sheets.'
-                    )
-                    app.logger.exception('No se pudo registrar NOTIFICADO para el código %s.', codigo)
+                registro = None
+            if not registro or registro['estado'] != nuevo_estado:
+                return jsonify(
+                    ok=False,
+                    error='No se pudo confirmar el cambio en Google Sheets. Verifica el registro antes de reintentar.',
+                ), 502
+
+        if not registro['tiene_columna_notificado']:
+            notificacion = {
+                'enviado': False,
+                'registrado': False,
+                'ya_estaba': False,
+                'pendiente': True,
+                'procesando': False,
+                'mensaje': 'La hoja no tiene la columna NOTIFICADO.',
+            }
+        elif _valor_notificado(registro['notificado']):
+            notificacion = {
+                'enviado': False,
+                'registrado': True,
+                'ya_estaba': True,
+                'pendiente': False,
+                'procesando': False,
+                'mensaje': 'La hoja ya indica que este registro fue notificado; no se envió otro correo.',
+            }
+        else:
+            notificacion = procesar_notificacion(codigo)
+            if notificacion.get('error'):
+                app.logger.warning(
+                    'El estado %s se guardó; Apps Script no confirmó la notificación para %s: %s',
+                    nuevo_estado,
+                    codigo,
+                    notificacion['error'],
+                )
 
     return jsonify(
         ok=True,
@@ -235,11 +239,63 @@ def cambiar_estado_registro_route():
     )
 
 
+# Endpoint independiente para reintentar un aviso sin volver a modificar el estado guardado.
+@app.post('/api/registros/notificacion/reintentar')
+def reintentar_notificacion_route():
+    """Reintenta solo la notificación pendiente de un registro ya finalizado."""
+    token_sesion = session.get('csrf_token')
+    token_solicitud = request.headers.get('X-CSRF-Token', '')
+    if not token_sesion or not secrets.compare_digest(token_sesion, token_solicitud):
+        return jsonify(ok=False, error='La sesión expiró. Actualiza el panel e inténtalo nuevamente.'), 403
+    if not request.is_json:
+        return jsonify(ok=False, error='La solicitud debe enviarse como JSON.'), 415
+
+    datos = request.get_json(silent=True) or {}
+    codigo = str(datos.get('codigo', '')).strip()
+    if not codigo:
+        return jsonify(ok=False, error='El código del registro es obligatorio.'), 400
+
+    with _approval_workflow_lock:
+        try:
+            registro = obtener_registro_por_codigo(codigo)
+        except ErrorRegistro as error:
+            return jsonify(ok=False, error=str(error)), error.status_code
+        except Exception:
+            app.logger.exception('No se pudo verificar el estado antes de reintentar la notificación.')
+            return jsonify(ok=False, error='No se pudo verificar el estado guardado en Google Sheets.'), 502
+
+        if registro['estado'] not in {'APROBADO', 'DESCARTADO'}:
+            return jsonify(ok=False, error='Solo se puede notificar un registro con estado final.'), 409
+        if not registro['tiene_columna_notificado']:
+            return jsonify(ok=False, error='La hoja no tiene la columna NOTIFICADO.'), 409
+        if _valor_notificado(registro['notificado']):
+            notificacion = {
+                'enviado': False,
+                'registrado': True,
+                'ya_estaba': True,
+                'pendiente': False,
+                'procesando': False,
+                'mensaje': 'La notificación ya está registrada; no se volvió a enviar.',
+            }
+        else:
+            notificacion = procesar_notificacion(codigo)
+
+    return jsonify(
+        ok=True,
+        guardado=True,
+        codigo=codigo,
+        estado=registro['estado'],
+        notificacion=notificacion,
+    )
+
+
+# Interpreta los valores afirmativos que Google Sheets puede guardar en NOTIFICADO.
 def _valor_notificado(valor):
     return str(valor or '').strip().upper().replace('Í', 'I') in {
         'SI', 'S', 'YES', 'TRUE', 'NOTIFICADO'
     }
 
 
+# Permite iniciar el servidor de desarrollo al ejecutar directamente este archivo.
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

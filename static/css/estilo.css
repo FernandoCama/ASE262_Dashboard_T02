@@ -1,3 +1,4 @@
+/* Variables globales de color, superficies, bordes y sombras reutilizadas en el diseño. */
 :root {
     --navy: #101a31;
     --navy-soft: #182644;
@@ -12,6 +13,7 @@
     --shadow: 0 8px 28px rgba(25, 43, 78, .055);
 }
 
+/* Reglas base del documento y contenedor principal del panel. */
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; scroll-padding-top: 24px; }
 body { margin: 0; background: var(--canvas); color: var(--ink); font-family: Inter, "Segoe UI", Roboto, Arial, sans-serif; font-size: 14px; }
@@ -45,6 +47,7 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
 .btn-refresh:hover { border-color: #b8c7f5; background: var(--blue-light); color: var(--blue); }
 .btn-refresh span { font-size: 18px; line-height: 1; }
 
+/* Cuadrícula de indicadores y tarjetas con los valores principales. */
 .summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 20px; }
 .metric-card { min-width: 0; padding: 20px 21px 18px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
 .metric-primary { color: #fff; border-color: transparent; background: linear-gradient(135deg, #3157d5, #243e9e); box-shadow: 0 10px 25px rgba(49,87,213,.17); }
@@ -60,6 +63,7 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
 .metric-primary .metric-foot { color: #d9e2ff; }
 .metric-dot { width: 6px; height: 6px; border-radius: 50%; background: #70e5c7; }
 
+/* Paneles del gráfico y resumen, incluyendo barras de progreso y estados vacíos. */
 .content-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(280px, .75fr); gap: 20px; margin-bottom: 20px; }
 .panel { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
 .chart-panel { overflow: hidden; }
@@ -90,6 +94,7 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
 .info-footer { display: flex; align-items: center; gap: 8px; margin: auto 20px 20px; padding: 12px; border-radius: 10px; background: #f7f9fd; color: #8390a5; font-size: 10px; }
 .info-footer-icon { color: var(--blue); font-size: 15px; }
 
+/* Tabla de registros, búsqueda, filtro y mensajes cuando no hay coincidencias. */
 .records-panel { margin-bottom: 18px; }
 .records-heading { align-items: center; padding-bottom: 20px; }
 .record-count { flex: 0 0 auto; padding: 8px 11px; border: 1px solid #e7ecf6; border-radius: 9px; background: #fafbfe; color: #77839a; font-size: 10px; }
@@ -121,6 +126,7 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
 .compact-empty { min-height: 125px; }
 .page-footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; padding: 5px 2px 0; color: #9aa4b5; font-size: 10px; }
 
+/* Ajustes progresivos para tabletas y pantallas móviles. */
 @media (max-width: 1200px) {
     .sidebar { width: 215px; }
     .main-content { margin-left: 215px; padding-right: 24px; padding-left: 24px; }
@@ -156,6 +162,7 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
     .table-scroll { max-height: 390px; }
     .dashboard-table thead th, .dashboard-table tbody td { padding: 11px 12px; }
 }
+/* Capa de acabado: fondos, elevación, transiciones y animaciones del tema inicial. */
 .app-shell { background: radial-gradient(ellipse at 88% 5%, rgba(115, 142, 255, .12), transparent 28%), var(--canvas); }
 .sidebar { background: linear-gradient(165deg, #111d38 0%, #101a31 48%, #17294b 100%); box-shadow: 12px 0 34px rgba(19, 32, 59, .12); }
 .sidebar::after { position: absolute; right: -70px; bottom: 78px; width: 180px; height: 180px; border: 1px solid rgba(133, 158, 255, .12); border-radius: 50%; content: ''; pointer-events: none; }
@@ -211,6 +218,7 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
 .dashboard-table thead th { backdrop-filter: blur(12px); }
 .page-footer { padding-top: 12px; }
 
+/* Animaciones suaves y respeto por la preferencia de movimiento reducido del usuario. */
 @keyframes dashboard-enter { from { opacity: 0; } to { opacity: 1; } }
 @keyframes card-enter { from { opacity: 0; transform: translateY(13px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes chart-appear { from { opacity: 0; transform: scale(.985); } to { opacity: 1; transform: scale(1); } }
@@ -220,7 +228,7 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
     *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
 }
 
-/* Identidad visual inspirada en Valle Grande: azul institucional y acentos dorados. */
+/* Segunda capa de tema: colores institucionales Valle Grande y acentos dorados. */
 :root {
     --navy: #07395a;
     --navy-soft: #0b527d;
@@ -381,7 +389,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
     .topbar h1 { font-size: 27px; }
 }
 
-/* Listado resumido de registros y detalle accesible. */
+/* Componentes del listado: tabla adaptable, distintivos, botones y ventana de detalle. */
 .records-heading-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 9px; }
 .record-limit-note { display: inline-flex; align-items: center; gap: 6px; color: #6b7f8c; font-size: 12px; }
 .table-scroll { max-height: 510px; overflow-x: hidden; overflow-y: auto; }
@@ -472,7 +480,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
     .dashboard-table .record-amount { white-space: normal; }
 }
 
-/* Detalle centrado, con scroll solo en el contenido y acciones siempre visibles. */
+/* Distribución del modal: contenido desplazable y acciones siempre visibles al pie. */
 .record-modal-dialog {
     width: min(850px, calc(100vw - 2rem));
     max-width: none;

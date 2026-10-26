@@ -10,6 +10,7 @@ class ErrorNotificacion(RuntimeError):
     """Configuración o transporte de correo no disponible."""
 
 
+# Construye y envía el correo del resultado mediante SMTP seguro (TLS o SSL).
 def enviar_notificacion_aprobacion(destinatario, nombre, codigo, monto, estado='APROBADO'):
     """Envía el resultado de validación y retorna solo cuando SMTP lo acepta."""
     estado = str(estado or 'APROBADO').strip().upper()

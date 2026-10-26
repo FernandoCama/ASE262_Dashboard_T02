@@ -7,6 +7,7 @@ import pandas as pd
 LIMITE_GASTO = 45.20
 
 
+# Normaliza texto para comparar encabezados y estados ignorando tildes y espacios.
 def _normalizar_texto(valor):
     """Pasa texto a mayúsculas sin acentos y con espacios uniformes."""
     texto = ' '.join(str(valor).strip().upper().split())
@@ -16,6 +17,7 @@ def _normalizar_texto(valor):
     )
 
 
+# Busca una columna cuyos encabezados incluyan todos los términos indicados.
 def _buscar_columna(df, *terminos):
     """Busca una columna por palabras clave, tolerando acentos y formato."""
     if df is None or df.empty:
@@ -29,10 +31,12 @@ def _buscar_columna(df, *terminos):
     return None
 
 
+# Localiza el campo temporal aunque la hoja lo nombre como fecha o marca temporal.
 def _columna_fecha(df):
     return _buscar_columna(df, 'FECHA') or _buscar_columna(df, 'MARCA TEMPORAL')
 
 
+# Convierte importes a valores numéricos; las celdas inválidas quedan como NaN.
 def _montos_numericos(df, columna):
     """Convierte montos a números y representa datos inválidos como NaN."""
     return pd.to_numeric(
@@ -40,6 +44,7 @@ def _montos_numericos(df, columna):
         errors='coerce',
     )
 
+# Detecta la columna del estado de validación en los formatos previstos por la hoja.
 def _buscar_columna_estado(df):
     """Encuentra la columna de estado sin depender de mayúsculas o espacios."""
     for columna in df.columns:
@@ -48,6 +53,7 @@ def _buscar_columna_estado(df):
             return columna
     return None
 
+# Calcula indicadores generales que se muestran en el encabezado del dashboard.
 def calcular_kpis(df):
     """Calcula el total de registros y la distribución por estado."""
     if df is None or df.empty:
@@ -81,6 +87,7 @@ def calcular_kpis(df):
 # FUNCIONES DE FERNANDO
 # ======================================================================
 
+# Cuenta cuántas solicitudes hay para cada motivo declarado.
 def contar_por_motivo_gasto(df, columna='Motivo del Gasto'):
     """
     Función 1: Usa un bucle FOR para contar cuántas solicitudes hay por cada motivo.
@@ -101,6 +108,7 @@ def contar_por_motivo_gasto(df, columna='Motivo del Gasto'):
                 
     return conteo_motivos
 
+# Suma los importes declarados y los agrupa por área o carrera.
 def sumar_montos_por_area(df):
     """
     Función 2: Usa un bucle FOR para sumar el monto total declarado por cada área.
@@ -144,6 +152,7 @@ def sumar_montos_por_area(df):
 # FUNCIONES DE PAOLA
 # ======================================================================
 
+# Agrupa y suma los gastos por nombre de la persona solicitante.
 def sumar_montos_por_persona(df):
     """
     Función Paola 1: Suma cuánto dinero de movilidad ha solicitado cada persona.
@@ -173,6 +182,7 @@ def sumar_montos_por_persona(df):
                 
     return gastos_persona
 
+# Cuenta los registros que todavía están pendientes de revisión.
 def contar_solicitudes_pendientes(df):
     """
     Función Paola 2: Cuenta mediante un bucle cuántas solicitudes de movilidad faltan revisar (estado PENDIENTE).
@@ -194,6 +204,7 @@ def contar_solicitudes_pendientes(df):
 # FUNCIONES DE ANDRÉ
 # ======================================================================
 
+# Calcula el promedio de los importes positivos registrados.
 def calcular_promedio_gasto_movilidad(df):
     """
     Función André 1: Calcula el costo promedio de los viajes/movilidades registradas.
@@ -222,6 +233,7 @@ def calcular_promedio_gasto_movilidad(df):
         
     return suma_total / cantidad_viajes
 
+# Cuenta cuántos importes superan el límite de referencia configurado.
 def contar_gastos_excesivos(df, limite=45.20):
     """
     Función André 2: Cuenta cuántos pasajes/movilidades superan el límite de la Normativa SUNAT (S/. 45.20).
@@ -248,6 +260,7 @@ def contar_gastos_excesivos(df, limite=45.20):
 # NUEVAS FUNCIONES DE ANÁLISIS
 # ======================================================================
 
+# Revisa campos obligatorios, fecha, DNI y monto e informa las filas observadas.
 def validar_registros(df, limite=LIMITE_GASTO):
     """Devuelve filas con campos obligatorios, fecha, DNI o monto inválidos."""
     if df is None or df.empty:
@@ -303,6 +316,7 @@ def validar_registros(df, limite=LIMITE_GASTO):
     return incidencias
 
 
+# Identifica códigos de solicitud repetidos y señala las filas involucradas.
 def detectar_codigos_duplicados(df):
     """Devuelve códigos repetidos y los números de fila donde aparecen."""
     columna_codigo = _buscar_columna(df, 'CODIGO')
@@ -322,6 +336,7 @@ def detectar_codigos_duplicados(df):
     }
 
 
+# Compara el monto con la etiqueta de control legal para detectar contradicciones.
 def verificar_control_legal(df, limite=LIMITE_GASTO):
     """Encuentra montos cuyo CONTROL LEY contradice el máximo permitido."""
     if df is None or df.empty:
@@ -355,6 +370,7 @@ def verificar_control_legal(df, limite=LIMITE_GASTO):
     return inconsistencias
 
 
+# Cuenta las filas que aún no tienen confirmada la notificación.
 def contar_no_notificados(df):
     """Cuenta gastos que aún no han sido notificados."""
     columna = _buscar_columna(df, 'NOTIFICADO')
@@ -367,6 +383,7 @@ def contar_no_notificados(df):
     ).sum())
 
 
+# Acumula los importes por mes usando el formato de fecha AAAA-MM.
 def sumar_montos_por_mes(df):
     """Agrupa los montos declarados por mes (AAAA-MM)."""
     if df is None or df.empty:
@@ -387,6 +404,7 @@ def sumar_montos_por_mes(df):
     return dict(sorted(resumen.items()))
 
 
+# Acumula los importes por estado de validación.
 def sumar_montos_por_estado(df):
     """Agrupa el monto declarado según el estado de validación."""
     if df is None or df.empty:
@@ -407,6 +425,7 @@ def sumar_montos_por_estado(df):
     return resumen
 
 
+# Calcula cuánto falta para alcanzar el límite o cuánto se ha excedido por registro.
 def calcular_margen_hasta_limite(df, limite=LIMITE_GASTO):
     """Devuelve por gasto cuánto margen queda (negativo si excede el tope)."""
     if df is None or df.empty:
@@ -436,6 +455,7 @@ def calcular_margen_hasta_limite(df, limite=LIMITE_GASTO):
 # ======================================================================
 # BLOQUE DE PRUEBA
 # ======================================================================
+# Al ejecutar este módulo directamente, consulta Sheets y presenta los análisis en consola.
 if __name__ == '__main__':
     from conexion_sheets import obtener_datos
 

@@ -12,6 +12,7 @@ RUTA_CREDENCIALES = Path(__file__).resolve().parent / 'credenciales.json'
 _approval_lock = threading.Lock()
 
 
+# Excepción de validación que conserva el código HTTP que debe devolver la API.
 class ErrorRegistro(ValueError):
     """Error de validación de registro con estado HTTP seguro para la API."""
 
@@ -20,6 +21,7 @@ class ErrorRegistro(ValueError):
         self.status_code = status_code
 
 
+    # Normaliza encabezados y valores para tolerar diferencias de tildes, mayúsculas y espacios.
 def _normalizar_encabezado(valor):
     texto = ' '.join(str(valor).strip().upper().split())
     return ''.join(
@@ -28,6 +30,7 @@ def _normalizar_encabezado(valor):
     )
 
 
+# Devuelve la posición del encabezado que contiene todos los términos buscados.
 def _encontrar_columna(encabezados, *terminos):
     terminos = tuple(_normalizar_encabezado(termino) for termino in terminos)
     for indice, encabezado in enumerate(encabezados):
@@ -37,6 +40,7 @@ def _encontrar_columna(encabezados, *terminos):
     return None
 
 
+# Busca una fila por código y rechaza códigos inexistentes o duplicados.
 def _fila_por_codigo(filas, columna_codigo, codigo):
     coincidencias = [
         (numero_fila, fila)
@@ -50,14 +54,17 @@ def _fila_por_codigo(filas, columna_codigo, codigo):
     return coincidencias[0]
 
 
+# Obtiene una celda como texto y tolera columnas o celdas ausentes.
 def _valor_fila(fila, indice):
     return str(fila[indice]).strip() if indice is not None and indice < len(fila) else ''
 
 
+# Comprueba si la hoja ya contiene una marca de notificación afirmativa.
 def _estado_notificado(valor):
     return _normalizar_encabezado(valor) in {'SI', 'S', 'YES', 'TRUE', 'NOTIFICADO'}
 
 
+# Valida la transición desde PENDIENTE y escribe únicamente la celda de estado autorizada.
 def actualizar_estado_registro(codigo, nuevo_estado, limite):
     """Actualiza un registro pendiente por código, tocando solo su celda de estado.
 
@@ -140,11 +147,47 @@ def actualizar_estado_registro(codigo, nuevo_estado, limite):
         }
 
 
+    # Función de compatibilidad que delega la aprobación en la validación común.
 def aprobar_registro(codigo, limite):
     """Compatibilidad para callers existentes; aplica las mismas reglas."""
     return actualizar_estado_registro(codigo, 'APROBADO', limite)
 
 
+# Recupera por código el estado y los campos que necesita el proceso de notificación.
+def obtener_registro_por_codigo(codigo):
+    """Lee por código único el estado y los datos necesarios para notificar."""
+    codigo = str(codigo or '').strip()
+    if not codigo:
+        raise ErrorRegistro('El código del registro es obligatorio.')
+
+    hoja = conectar()
+    valores = hoja.get_all_values()
+    if not valores:
+        raise ErrorRegistro('La hoja de Google Sheets está vacía.', 404)
+
+    encabezados = valores[0]
+    columna_codigo = _encontrar_columna(encabezados, 'CODIGO')
+    columna_estado = _encontrar_columna(encabezados, 'ESTADO', 'VALIDACION')
+    columna_notificado = _encontrar_columna(encabezados, 'NOTIFICADO')
+    columna_nombre = _encontrar_columna(encabezados, 'NOMBRE')
+    columna_correo = _encontrar_columna(encabezados, 'CORREO')
+    columna_monto = _encontrar_columna(encabezados, 'MONTO')
+    if columna_codigo is None or columna_estado is None:
+        raise ErrorRegistro('La hoja no contiene las columnas de código y estado.', 500)
+
+    _, fila = _fila_por_codigo(valores, columna_codigo, codigo)
+    return {
+        'codigo': codigo,
+        'estado': _normalizar_encabezado(_valor_fila(fila, columna_estado)),
+        'notificado': _valor_fila(fila, columna_notificado),
+        'tiene_columna_notificado': columna_notificado is not None,
+        'nombre': _valor_fila(fila, columna_nombre),
+        'correo': _valor_fila(fila, columna_correo),
+        'monto': _valor_fila(fila, columna_monto),
+    }
+
+
+# Marca el aviso como enviado solo cuando el proceso de correo confirmó su entrega.
 def marcar_registro_notificado(codigo):
     """Marca SÍ solo después de que el transporte confirme el envío."""
     codigo = str(codigo or '').strip()
@@ -172,6 +215,7 @@ def marcar_registro_notificado(codigo):
         return True
 
 
+    # Abre la primera pestaña de la hoja usando la cuenta de servicio del proyecto.
 def conectar():
     """Abre la primera pestaña de la hoja usando la cuenta de servicio."""
     cliente = gspread.service_account(filename=str(RUTA_CREDENCIALES))
@@ -179,17 +223,20 @@ def conectar():
     return archivo.sheet1
 
 
+# Lee el contenido completo de la pestaña, incluidos los encabezados.
 def _leer_valores():
     """Lee las filas de la pestaña, incluido el encabezado."""
     return conectar().get_all_values()
 
 
+# Devuelve las filas de datos sin la fila de encabezados.
 def leer_todos():
     """Devuelve las filas de gastos sin incluir el encabezado."""
     valores = _leer_valores()
     return valores[1:] if valores else []
 
 
+# Valida y agrega una nueva solicitud al final de la hoja de cálculo.
 def agregar_gasto(fecha, correo, nombre, dni, area, motivo, monto, codigo,
                   control_ley, estado, notificado):
     """Valida y agrega un gasto al final de la hoja; propaga errores de Sheets."""
@@ -222,6 +269,7 @@ def agregar_gasto(fecha, correo, nombre, dni, area, motivo, monto, codigo,
     return resultado
 
 
+# Convierte los valores leídos en un DataFrame y normaliza fechas e importes.
 def obtener_datos():
     """
     Se conecta a Google Sheets usando credenciales.json 
@@ -253,7 +301,7 @@ def obtener_datos():
         print(f"Error al conectar con Google Sheets: {e}")
         return None
 
-# Bloque de prueba de conexión
+# Prueba manual: conecta con Sheets y muestra el nombre de la pestaña activa.
 if __name__ == "__main__":
     print("Conectando a Google Sheets...")
     
